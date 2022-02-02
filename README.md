@@ -14,16 +14,20 @@ After which you can run an XVC server daemon with the command
   netcat -l 2542 < /dev/ttyUSBx > /dev/ttyUSBx  
 ```
 
-## Pinout
+## Pinout STM32F103CB (LQFP48/LQFP48)
 
-|Pin| Name | Function   | DIR |  Electrical  |  Connected to       |
-|--:|------|------------|-----|--------------|---------------------|
-|   | PA0  | TIM2 CH1   | out | AF_PP 10MHz  | Xilinx JTAG TCK     |
-|   | PA1  | GPIO A1    | out | OUT_PP 10MHz | Xilinx JTAG TDI     |
-|   | PA2  | GPIO A2    | in  | PullUp       | Xilinx JTAG TDO     |
-|   | PA3  | GPIO A3    | out | OUT_PP 10MHz | Xilinx JTAG TMS     |
-|   | PA9  | USART1 TX  | out | AF_PP 10MHz  | console debug out   |
-|   | PC13 | GPIO C13   | out | OUT_OD 2MHz  | LED (active low)    |
+| Pin | Name | Function  | DIR    | Electrical   | Connected to       |
+|----:|:-----|:----------|:-------|:-------------|:-------------------|
+| 10  | PA0  | TIM2 CH1  | out    | AF_PP 50MHz  | Xilinx JTAG TCK    |
+| 11  | PA1  | GPIO A1   | out    | OUT_PP 50MHz | Xilinx JTAG TDI    |
+| 12  | PA2  | GPIO A2   | in     | PullUp       | Xilinx JTAG TDO    |
+| 13  | PA3  | GPIO A3   | out    | OUT_PP 50MHz | Xilinx JTAG TMS    |
+| 30  | PA9  | USART1 TX | out    | AF_PP 50MHz  | console debug out  |
+| 32  | PA11 | USB D-    |        |              | automatic          |
+| 33  | PA12 | USB D+    |        |              | automatic          |
+| 34  | PA13 | SWDIO     | in/out |              | ST-Link programmer |
+| 37  | PA14 | SWCLK     | in/out |              | ST-Link programmer |
+|  2  | PC13 | GPIO C13  | out    | OUT_OD 2MHz  | LED (active low)   |
 
 
 PA0-3 form the Xilinx JTAG connection.
