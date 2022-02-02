@@ -5,11 +5,15 @@ This code provides a minimal usb device with 1 Bulk in and 1 Bulk out endpoint o
 which [XVC](https://github.com/Xilinx/XilinxVirtualCable) protocol 1.0 is implemented.
 
 The device can be made to show up as /dev/ttyUXBx under linux with the following commands
+```
   sudo modprobe usbserial vendor=0x0483 product=0x5740 
-  
+```
+
 After which you can run an XVC server daemon with the command
+```
   netcat -l 2542 < /dev/ttyUSBx > /dev/ttyUSBx  
- 
+```
+
 ## Pinout
 
 |Pin| Name | Function   | DIR |  Electrical  |  Connected to       |
