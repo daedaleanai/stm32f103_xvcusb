@@ -223,7 +223,7 @@ int main(void) {
 
         case TOK_SETTCK: {
             uint64_t period = getuint32(); // desired TCK period in nanoseconds
-            cbprintf(u1puts, "settick:%lld ->", period);
+            cbprintf(u1puts, "settck:%lld ->", period);
             // set TIM2 PSC and ARR
             if ((period > 100) && (period < 10000)) { // TODO sane limits
                 TIM2.ARR  = (36 * period / 1000) - 1;
@@ -232,7 +232,7 @@ int main(void) {
             // compute actual period set
             period = (TIM2.PSC + 1) * (TIM2.ARR + 1);
             period *= 1000;
-            period /= 36;
+            period /= 72;
             cbprintf(u1puts, " %lld [ns] %d * %d\n", period, (TIM2.PSC + 1), (TIM2.ARR + 1));
             uint8_t buf[4] = {period, period >> 8, period >> 16, period >> 24};
             for (;;)
