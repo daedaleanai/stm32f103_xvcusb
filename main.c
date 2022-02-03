@@ -131,20 +131,15 @@ void TIM2_IRQ_Handler(void) {
         size_t  idx = shift_count >> 3;
         uint8_t msk = 1U << (shift_count & 0x7);
 
-        enum GPIO_Pin hi = 0;
-        enum GPIO_Pin lo = 0;
+        enum GPIO_Pin val = 0;
 
         if (tms_vector[idx] & msk)
-            hi |= XTMS_PIN;
-        else
-            lo |= XTMS_PIN;
+            val |= XTMS_PIN;
 
         if (tdx_vector[idx] & msk)
-            hi |= XTDI_PIN;
-        else
-            lo |= XTDI_PIN;
+            val |= XTDI_PIN;
 
-        digitalHiLo(hi, lo);
+        digitalSet(XTMS_PIN|XTDI_PIN, val);
     } else {
         TIM2.CR1 &= ~TIM_CR1_CEN;
     }

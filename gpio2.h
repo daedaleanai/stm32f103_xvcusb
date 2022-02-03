@@ -106,6 +106,15 @@ static inline void digitalToggle(enum GPIO_Pin pins) {
 	GPIO_ALL[(pins>>16)&0x7].gpio.ODR ^= pins&Pin_All;
 }
 
+static inline void digitalSet(enum GPIO_Pin pins, enum GPIO_Pin val) {
+	assert(!((pins>>24) & ((pins>>24)-1)));
+	while   ((pins>>24) & ((pins>>24)-1)); // hang if mixed gpios
+	int i = (pins>>16)&0x7;
+	pins &= Pin_All;
+	GPIO_ALL[i].gpio.ODR = (GPIO_ALL[i].gpio.ODR & ~pins) | (val & pins);
+}
+
+
 static inline enum GPIO_Pin digitalIn(enum GPIO_Pin pins) { 
 	assert(!((pins>>24) & ((pins>>24)-1)));
 	while   ((pins>>24) & ((pins>>24)-1)); // hang if mixed gpios
