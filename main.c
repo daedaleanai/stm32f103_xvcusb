@@ -60,10 +60,10 @@ static size_t u1puts(const char* buf, size_t len) { return usart_puts(&USART1, &
 // void USB_LP_CAN1_RX0_IRQ_Handler(void) {};
 
 static uint8_t usbrxbuf[64];
-static size_t usbrxhead = 0;
-static size_t usbrxtail = 0;
+static size_t  usbrxhead = 0;
+static size_t  usbrxtail = 0;
 
-static uint8_t getchar(void) { 
+static uint8_t getchar(void) {
     if (usbrxtail == usbrxhead) {
         usbrxtail = 0;
         usbrxhead = 0;
@@ -84,7 +84,7 @@ int mcmp(const uint8_t* a, const uint8_t* b, size_t len) {
 enum tok_t { TOK_NONE, TOK_GETINFO, TOK_SETTCK, TOK_SHIFT };
 enum tok_t getcmd(void) {
     uint8_t cmd[8];
-    size_t i;
+    size_t  i;
     for (i = 0; i < sizeof cmd; ++i) {
         cmd[i] = getchar();
         if (cmd[i] == ':')
@@ -115,9 +115,9 @@ uint32_t getuint32() {
 
 static uint8_t tms_vector[1024];
 static uint8_t tdx_vector[1024]; // tdi out, tdo in
-static size_t num_bits = 0;
-static size_t shift_count = 0; 
-static int last_tdo = 0;
+static size_t  num_bits    = 0;
+static size_t  shift_count = 0;
+static int     last_tdo    = 0;
 
 // TIM2 shifts out the bitbangs.  CH1 is the TCK clock
 void TIM2_IRQ_Handler(void) {
@@ -128,21 +128,21 @@ void TIM2_IRQ_Handler(void) {
     last_tdo = digitalIn(XTDO_PIN);
 
     if (shift_count < num_bits) {
-        size_t idx = shift_count >> 3;
-        uint8_t msk = 1U<<(shift_count & 0x7);
+        size_t  idx = shift_count >> 3;
+        uint8_t msk = 1U << (shift_count & 0x7);
 
-        enum GPIO_Pin hi  = 0;
-        enum GPIO_Pin lo  = 0;
+        enum GPIO_Pin hi = 0;
+        enum GPIO_Pin lo = 0;
 
         if (tms_vector[idx] & msk)
             hi |= XTMS_PIN;
-        else 
+        else
             lo |= XTMS_PIN;
 
         if (tdx_vector[idx] & msk)
-            hi |=  XTDI_PIN;
-        else 
-            lo |=  XTDI_PIN;
+            hi |= XTDI_PIN;
+        else
+            lo |= XTDI_PIN;
 
         digitalHiLo(hi, lo);
     } else {
@@ -150,17 +150,17 @@ void TIM2_IRQ_Handler(void) {
     }
 
     if (shift_count) {
-        if(last_tdo)
-            tdx_vector[(shift_count-1)>>3] |= (1U <<(shift_count-1)&7);
+        if (last_tdo)
+            tdx_vector[(shift_count - 1) >> 3] |= (1U << (shift_count - 1) & 7);
         else
-            tdx_vector[(shift_count-1)>>3] &= ~(1U <<(shift_count-1)&7);
+            tdx_vector[(shift_count - 1) >> 3] &= ~(1U << (shift_count - 1) & 7);
     }
 
     ++shift_count;
 }
 
 // response to a getinfo: request. sizeof(tms_vector) + sizeof(tdx_vector)
-static const char xvcInfo[] = "xvcServer_v1.0:2048\n";  
+static const char xvcInfo[] = "xvcServer_v1.0:2048\n";
 
 int main(void) {
 
@@ -200,10 +200,10 @@ int main(void) {
     // mid period
     // default jtag period is 1000ns (1MHz)
     TIM2.DIER |= TIM_DIER_UIE;
-    TIM2.CCMR1 = 0b110 << 4;  // PWM mode 1
+    TIM2.CCMR1 = 0b110 << 4; // PWM mode 1
     TIM2.CCER |= TIM_CCER_CC1E;
-    TIM2.PSC = 0;    // 72MHz, 
-    TIM2.ARR = 72-1; //  1MHz
+    TIM2.PSC  = 0;      // 72MHz,
+    TIM2.ARR  = 72 - 1; //  1MHz
     TIM2.CCR1 = ((TIM2.ARR + 1) / 2) - 1;
     NVIC_EnableIRQ(TIM2_IRQn);
 
@@ -221,8 +221,8 @@ int main(void) {
 
         case TOK_GETINFO:
             cbprintf(u1puts, "getinfo: -> %s", xvcInfo);
-            for(;;)
-                if(usb_send(xvcInfo, sizeof xvcInfo) != 0)
+            for (;;)
+                if (usb_send(xvcInfo, sizeof xvcInfo) != 0)
                     break;
             continue;
 
@@ -231,7 +231,7 @@ int main(void) {
             cbprintf(u1puts, "settick:%lld ->", period);
             // set TIM2 PSC and ARR
             if ((period > 100) && (period < 10000)) { // TODO sane limits
-                TIM2.ARR = (36 * period / 1000) - 1;
+                TIM2.ARR  = (36 * period / 1000) - 1;
                 TIM2.CCR1 = ((TIM2.ARR + 1) / 2) - 1;
             }
             // compute actual period set
@@ -239,16 +239,16 @@ int main(void) {
             period *= 1000;
             period /= 36;
             cbprintf(u1puts, " %lld [ns] %d * %d\n", period, (TIM2.PSC + 1), (TIM2.ARR + 1));
-            uint8_t buf[4] = {period , period >> 8, period >> 16, period >> 24};
-            for(;;)
-                if(usb_send(buf, sizeof buf) != 0)
+            uint8_t buf[4] = {period, period >> 8, period >> 16, period >> 24};
+            for (;;)
+                if (usb_send(buf, sizeof buf) != 0)
                     break;
             continue;
         }
 
         case TOK_SHIFT: {
             num_bits = getuint32();
-            cbprintf(u1puts, "shift:%d bits ....",num_bits);
+            cbprintf(u1puts, "shift:%d bits ....", num_bits);
             size_t num_bytes = (num_bits + 7) / 8;
             if (num_bytes >= 1024) {
                 cbprintf(u1puts, "too large. discarding.\n");
@@ -258,19 +258,18 @@ int main(void) {
                 continue;
             }
             for (size_t i = 0; i < num_bytes; ++i) {
-                tms_vector[i] = getchar(); 
+                tms_vector[i] = getchar();
             }
             for (size_t i = 0; i < num_bytes; ++i) {
-                tdx_vector[i] = getchar(); 
+                tdx_vector[i] = getchar();
             }
 
             shift_count = 0;
             TIM2.CR1 |= TIM_CR1_CEN;
-            while(TIM2.CR1 & TIM_CR1_CEN)
+            while (TIM2.CR1 & TIM_CR1_CEN)
                 __WFI();
 
             usb_send(tdx_vector, num_bytes);
-
         }
         }
     } // forever
