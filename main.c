@@ -57,11 +57,17 @@ static struct Ringbuffer usart1tx;
 
 void          USART1_IRQ_Handler(void) { usart_irq_handler(&USART1, &usart1tx); }
 static size_t u1puts(const char* buf, size_t len) { return usart_puts(&USART1, &usart1tx, buf, len); }
-// void USB_LP_CAN1_RX0_IRQ_Handler(void) {};
+
+static void reboot() {
+    usb_shutdown();
+    delay(3000); // 3ms
+    NVIC_SystemReset();
+}
 
 static uint8_t usbrxbuf[64];
 static size_t  usbrxhead = 0;
 static size_t  usbrxtail = 0;
+static int been_configured = 0;
 
 static uint8_t getchar(void) {
     if (usbrxtail == usbrxhead) {
@@ -69,12 +75,20 @@ static uint8_t getchar(void) {
         usbrxhead = 0;
         while (usbrxhead == 0) {
             usbrxhead = usb_recv(usbrxbuf, sizeof usbrxbuf);
+            // if we were ever CONFIGURED and got a command, and now we're no longer CONFIGURED -> reboot.
+            if (usb_state() == USB_CONFIGURED) {
+                if (usbrxhead != 0) {
+                    been_configured = 1;
+                }
+            } else if (been_configured) {
+                    reboot();
+            }
         }
     }
     return usbrxbuf[usbrxtail++];
 }
 
-int mcmp(const uint8_t* a, const uint8_t* b, size_t len) {
+static int mcmp(const uint8_t* a, const uint8_t* b, size_t len) {
     for (size_t i = 0; i < len; i++)
         if (a[i] != b[i])
             return (a[i] < b[i]) ? -1 : 1;
@@ -82,7 +96,7 @@ int mcmp(const uint8_t* a, const uint8_t* b, size_t len) {
 }
 
 enum tok_t { TOK_NONE, TOK_GETINFO, TOK_SETTCK, TOK_SHIFT };
-enum tok_t getcmd(void) {
+static enum tok_t getcmd(void) {
     uint8_t cmd[8];
     size_t  i;
     for (i = 0; i < sizeof cmd; ++i) {
@@ -105,7 +119,7 @@ enum tok_t getcmd(void) {
     return TOK_NONE;
 }
 
-uint32_t getuint32() {
+static uint32_t getuint32() {
     uint32_t r = getchar();
     r |= ((uint32_t)getchar()) << 8;
     r |= ((uint32_t)getchar()) << 16;
@@ -210,10 +224,6 @@ int main(void) {
     for (;;) {
         enum tok_t tok = getcmd();
         switch (tok) {
-        case TOK_NONE:
-            // should result in usb reset
-            continue;
-
         case TOK_GETINFO:
             cbprintf(u1puts, "getinfo: -> %s", xvcInfo);
             for (;;)
@@ -265,6 +275,9 @@ int main(void) {
                 __WFI();
 
             usb_send(tdx_vector, num_bytes);
+
+        case TOK_NONE:
+            reboot();
         }
         }
     } // forever
