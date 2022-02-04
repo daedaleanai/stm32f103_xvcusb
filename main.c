@@ -222,6 +222,8 @@ int main(void) {
     // stack, forcing the /dev/ttyUSBx to disappear. could also reset the whole microcontroller.
 
     for (;;) {
+        led0_toggle();
+        
         enum tok_t tok = getcmd();
         switch (tok) {
         case TOK_GETINFO:

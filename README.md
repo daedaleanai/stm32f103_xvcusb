@@ -34,5 +34,5 @@ PA0-3 form the Xilinx JTAG connection.
 
 PA9 is a 921600 8N1 serial debug output.
 
-PC13 toggles on each XVC connection.
+PC13 toggles on each XVC command.
 
