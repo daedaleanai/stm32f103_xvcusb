@@ -114,7 +114,6 @@ static inline void digitalSet(enum GPIO_Pin pins, enum GPIO_Pin val) {
 	GPIO_ALL[i].gpio.ODR = (GPIO_ALL[i].gpio.ODR & ~pins) | (val & pins);
 }
 
-
 static inline enum GPIO_Pin digitalIn(enum GPIO_Pin pins) { 
 	assert(!((pins>>24) & ((pins>>24)-1)));
 	while   ((pins>>24) & ((pins>>24)-1)); // hang if mixed gpios

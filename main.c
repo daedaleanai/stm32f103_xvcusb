@@ -24,13 +24,10 @@ static struct gpio_config_t {
     enum GPIO_Conf mode;
 } pin_cfgs[] = {
     {PAAll, Mode_INA}, // reset
-//  {PBAll, Mode_INA}, // reset
     {PCAll, Mode_INA}, // reset
-    {XTCK_PIN, Mode_AF_PP_50MHz}, // TIM2 Ch1
-    {XTDI_PIN|XTMS_PIN, Mode_Out_PP_50MHz}, // gpio out bitbang
+    {XTCK_PIN|XTDI_PIN|XTMS_PIN, Mode_Out_PP_50MHz}, // gpio out bitbang
     {XTDO_PIN, Mode_IN },  // gpio in bitbang
     {USART1_TX_PIN, Mode_AF_PP_50MHz},
-//  {USART1_RX_PIN, Mode_IPU},
     {LED0_PIN, Mode_Out_OD_2MHz},
     {0, 0}, // sentinel
 };
@@ -48,7 +45,6 @@ struct {
 } irqprios[] = {
     {SysTick_IRQn,          0, 0},
     {TIM2_IRQn,             1, 0},
-//  {USB_LP_CAN1_RX0_IRQn,  2, 0},
     {USART1_IRQn,           3, 0},
     {None_IRQn, 0xff, 0xff},
 };
@@ -60,7 +56,7 @@ static size_t u1puts(const char* buf, size_t len) { return usart_puts(&USART1, &
 
 static void reboot() {
     usb_shutdown();
-    delay(3000); // 3ms
+    delay(30000); // 30ms
     NVIC_SystemReset();
 }
 
@@ -97,15 +93,16 @@ static int mcmp(const uint8_t* a, const uint8_t* b, size_t len) {
 
 enum tok_t { TOK_NONE, TOK_GETINFO, TOK_SETTCK, TOK_SHIFT };
 static enum tok_t getcmd(void) {
-    uint8_t cmd[8];
-    size_t  i;
+    uint8_t cmd[16];
+    size_t  i = 0;
     for (i = 0; i < sizeof cmd; ++i) {
         cmd[i] = getchar();
         if (cmd[i] == ':')
             break;
     }
+
     if (i == sizeof cmd) {
-        cbprintf(u1puts, "discarded %d characters\n", i);
+        cbprintf(u1puts, "discarded %d characters  '%*s'\n", i, i, cmd);
         return TOK_NONE;
     }
     if (mcmp(cmd, "getinfo:", 8) == 0)
@@ -130,42 +127,53 @@ static uint32_t getuint32() {
 static uint8_t tms_vector[1024];
 static uint8_t tdx_vector[1024]; // tdi out, tdo in
 static size_t  num_bits    = 0;
-static size_t  shift_count = 0;
-static int     last_tdo    = 0;
+static size_t  shift_count = 0; // counts to 2* num_bits
 
-// TIM2 shifts out the bitbangs.  CH1 is the TCK clock
+
+// TIM2 shifts out & in the bitbangs
 void TIM2_IRQ_Handler(void) {
     if ((TIM2.SR & TIM_SR_UIF) == 0)
         return;
     TIM2.SR &= ~TIM_SR_UIF;
 
-    last_tdo = digitalIn(XTDO_PIN);
+    if ((shift_count & 1) == 0 ) {
+        // start of phase
+        int tdo = digitalIn(XTDO_PIN) ? -1 : 0;
 
-    if (shift_count < num_bits) {
-        size_t  idx = shift_count >> 3;
-        uint8_t msk = 1U << (shift_count & 0x7);
+        if (shift_count/2 < num_bits) {
+            size_t  idx = shift_count / 16;
+            uint8_t msk = 1U << ((shift_count/2) % 8);
 
-        enum GPIO_Pin val = 0;
+            enum GPIO_Pin val = 0;
 
-        if (tms_vector[idx] & msk)
-            val |= XTMS_PIN;
+            if (tms_vector[idx] & msk)
+                val |= XTMS_PIN;
 
-        if (tdx_vector[idx] & msk)
-            val |= XTDI_PIN;
+            if (tdx_vector[idx] & msk)
+                val |= XTDI_PIN;
 
-        digitalSet(XTMS_PIN|XTDI_PIN, val);
+            digitalSet(XTMS_PIN|XTDI_PIN|XTCK_PIN, val);
+        }
+
+        if (shift_count/2) {
+            size_t  idx = (shift_count-1) / 16;
+            uint8_t msk = 1U << (((shift_count-1)/2) % 8);
+            if (tdo)
+                tdx_vector[idx] |= 1U << msk;
+            else
+                tdx_vector[idx] &= ~1U << msk;
+        }
+
     } else {
-        TIM2.CR1 &= ~TIM_CR1_CEN;
-    }
-
-    if (shift_count) {
-        if (last_tdo)
-            tdx_vector[(shift_count - 1) >> 3] |= (1U << (shift_count - 1) & 7);
-        else
-            tdx_vector[(shift_count - 1) >> 3] &= ~(1U << (shift_count - 1) & 7);
+        // mid phase
+        digitalHi(XTCK_PIN);
     }
 
     ++shift_count;
+
+    if (shift_count == 2*num_bits)
+        TIM2.CR1 &= ~TIM_CR1_CEN;
+
 }
 
 // response to a getinfo: request. sizeof(tms_vector) + sizeof(tdx_vector)
@@ -209,11 +217,8 @@ int main(void) {
     // mid period
     // default jtag period is 1000ns (1MHz)
     TIM2.DIER |= TIM_DIER_UIE;
-    TIM2.CCMR1 = 0b110 << 4; // PWM mode 1
-    TIM2.CCER |= TIM_CCER_CC1E;
     TIM2.PSC  = 0;      // 72MHz,
-    TIM2.ARR  = 72 - 1; //  1MHz
-    TIM2.CCR1 = ((TIM2.ARR + 1) / 2) - 1;
+    TIM2.ARR  = 36 - 1; //  1MHz / 2
     NVIC_EnableIRQ(TIM2_IRQn);
 
     usb_init();
@@ -223,13 +228,13 @@ int main(void) {
 
     for (;;) {
         led0_toggle();
-        
+        usart_wait(&USART1);        
         enum tok_t tok = getcmd();
         switch (tok) {
         case TOK_GETINFO:
             cbprintf(u1puts, "getinfo: -> %s", xvcInfo);
             for (;;)
-                if (usb_send(xvcInfo, sizeof xvcInfo) != 0)
+                if (usb_send(xvcInfo, (sizeof xvcInfo) - 1) != 0)
                     break;
             continue;
 
@@ -255,28 +260,42 @@ int main(void) {
 
         case TOK_SHIFT: {
             num_bits = getuint32();
-            cbprintf(u1puts, "shift:%d bits ....", num_bits);
             size_t num_bytes = (num_bits + 7) / 8;
+            cbprintf(u1puts, "shifting out :%d bits (%d bytes):\ntms:", num_bits, num_bytes);
             if (num_bytes >= 1024) {
-                cbprintf(u1puts, "too large. discarding.\n");
+                cbprintf(u1puts, "...too large. discarding.\n");
                 for (size_t i = 0; i < num_bytes; ++i)
                     getchar();
-                // should result in usb reset
+
                 continue;
             }
             for (size_t i = 0; i < num_bytes; ++i) {
                 tms_vector[i] = getchar();
+                cbprintf(u1puts, " %02x", tms_vector[i]);
             }
+            cbprintf(u1puts, "\ntdi:");
             for (size_t i = 0; i < num_bytes; ++i) {
                 tdx_vector[i] = getchar();
+                cbprintf(u1puts, " %02x", tdx_vector[i]);
             }
+
+            usart_wait(&USART1);
 
             shift_count = 0;
             TIM2.CR1 |= TIM_CR1_CEN;
             while (TIM2.CR1 & TIM_CR1_CEN)
                 __WFI();
 
-            usb_send(tdx_vector, num_bytes);
+            cbprintf(u1puts, "\nshifted in %d bits:\ntdo:", shift_count/2);
+            for (size_t i = 0; i < num_bytes; ++i) {
+                cbprintf(u1puts, " %02x", tdx_vector[i]);
+            }
+            cbprintf(u1puts, "\n");
+            for (;;)
+                if (usb_send(tdx_vector, num_bytes))
+                    break;
+
+            continue;
 
         case TOK_NONE:
             reboot();

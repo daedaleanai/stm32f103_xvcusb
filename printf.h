@@ -12,7 +12,7 @@
 #include <stdint.h>  // for uintX_t
 
 struct Ringbuffer {
-    uint8_t  buf[1 << 8];  // size must be power of two
+    uint8_t  buf[1 << 10];  // size must be power of two
     uint16_t head;         // writes happen here
     uint16_t tail;         // reads happen here
 };
