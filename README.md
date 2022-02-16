@@ -11,6 +11,7 @@ The device can be made to show up as /dev/ttyUXBx under linux with the following
 
 After which you can run an XVC server daemon with the command
 ```
+  stty -echo raw -F /dev/ttyUSBx 
   netcat -l 2542 < /dev/ttyUSBx > /dev/ttyUSBx  
 ```
 
