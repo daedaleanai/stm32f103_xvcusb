@@ -218,7 +218,7 @@ int main(void) {
     // default jtag period is 1000ns (1MHz)
     TIM2.DIER |= TIM_DIER_UIE;
     TIM2.PSC  = 0;      // 72MHz,
-    TIM2.ARR  = 24 - 1; //  3MHz / 2
+    TIM2.ARR  = 30 - 1; //  2.4MHz / 2
     NVIC_EnableIRQ(TIM2_IRQn);
 
     usb_init();
