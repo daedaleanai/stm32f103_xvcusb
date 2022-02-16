@@ -185,7 +185,7 @@ size_t usb_recv(uint8_t* buf, size_t sz) {
             usb_ep_clr_ctr_tx(ep);
         }
 
-        if (USB.EPR[ep] & USB_EPRx_CTR_RX) {
+        if ((USB.EPR[ep] & USB_EPRx_CTR_RX) && buf && sz) {
             // OUT transaction
             // assert(usb_ep_get_stat_rx() == USB_EP_STAT_NAK)
             usb_ep_clr_ctr_rx(ep);

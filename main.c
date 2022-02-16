@@ -136,42 +136,42 @@ void TIM2_IRQ_Handler(void) {
         return;
     TIM2.SR &= ~TIM_SR_UIF;
 
-    if ((shift_count & 1) == 0 ) {
-        // start of phase
-        int tdo = digitalIn(XTDO_PIN) ? -1 : 0;
+    size_t  idx = (shift_count/2) / 8;
+    uint8_t msk = 1U << ((shift_count/2) % 8);
+
+    if ((shift_count & 1) == 0) {
+        // start of phase: clock goes low and set TMS and TDI
 
         if (shift_count/2 < num_bits) {
-            size_t  idx = shift_count / 16;
-            uint8_t msk = 1U << ((shift_count/2) % 8);
-
             enum GPIO_Pin val = 0;
 
-            if (tms_vector[idx] & msk)
+            if (tms_vector[idx] & msk) {
                 val |= XTMS_PIN;
+            }
 
-            if (tdx_vector[idx] & msk)
+            if (tdx_vector[idx] & msk) {
                 val |= XTDI_PIN;
+            }
 
             digitalSet(XTMS_PIN|XTDI_PIN|XTCK_PIN, val);
         }
 
-        if (shift_count/2) {
-            size_t  idx = (shift_count-1) / 16;
-            uint8_t msk = 1U << (((shift_count-1)/2) % 8);
-            if (tdo)
-                tdx_vector[idx] |= 1U << msk;
-            else
-                tdx_vector[idx] &= ~1U << msk;
+    } else {
+        // mid phase: clock goes high and sample TDO
+
+        digitalHi(XTCK_PIN);
+
+        if (digitalIn(XTDO_PIN)) {
+            tdx_vector[idx] |= msk;
+        } else {
+            tdx_vector[idx] &= ~msk;
         }
 
-    } else {
-        // mid phase
-        digitalHi(XTCK_PIN);
     }
 
     ++shift_count;
 
-    if (shift_count == 2*num_bits)
+    if ((shift_count + 1) == 2*num_bits)
         TIM2.CR1 &= ~TIM_CR1_CEN;
 
 }
@@ -218,7 +218,7 @@ int main(void) {
     // default jtag period is 1000ns (1MHz)
     TIM2.DIER |= TIM_DIER_UIE;
     TIM2.PSC  = 0;      // 72MHz,
-    TIM2.ARR  = 36 - 1; //  1MHz / 2
+    TIM2.ARR  = 72 - 1; //  1MHz / 2
     NVIC_EnableIRQ(TIM2_IRQn);
 
     usb_init();
@@ -244,12 +244,11 @@ int main(void) {
             // set TIM2 PSC and ARR
             if ((period > 100) && (period < 10000)) { // TODO sane limits
                 TIM2.ARR  = (36 * period / 1000) - 1;
-                TIM2.CCR1 = ((TIM2.ARR + 1) / 2) - 1;
             }
             // compute actual period set
             period = (TIM2.PSC + 1) * (TIM2.ARR + 1);
             period *= 1000;
-            period /= 72;
+            period /= 36;
             cbprintf(u1puts, " %lld [ns] %d * %d\n", period, (TIM2.PSC + 1), (TIM2.ARR + 1));
             uint8_t buf[4] = {period, period >> 8, period >> 16, period >> 24};
             for (;;)
@@ -286,14 +285,17 @@ int main(void) {
             while (TIM2.CR1 & TIM_CR1_CEN)
                 __WFI();
 
-            cbprintf(u1puts, "\nshifted in %d bits:\ntdo:", shift_count/2);
+            cbprintf(u1puts, "\nshifted in %d half bits:\ntdo:", shift_count);
             for (size_t i = 0; i < num_bytes; ++i) {
                 cbprintf(u1puts, " %02x", tdx_vector[i]);
             }
             cbprintf(u1puts, "\n");
-            for (;;)
-                if (usb_send(tdx_vector, num_bytes))
-                    break;
+
+            for (size_t i = 0; i < num_bytes; ){
+                i += usb_send(tdx_vector + i, num_bytes - i);
+                cbprintf(u1puts, "sent %d ...\n", i);
+                usb_recv(NULL, 0); // tick the usb stack
+            }
 
             continue;
 
