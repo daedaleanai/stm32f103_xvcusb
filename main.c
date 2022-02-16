@@ -218,7 +218,7 @@ int main(void) {
     // default jtag period is 1000ns (1MHz)
     TIM2.DIER |= TIM_DIER_UIE;
     TIM2.PSC  = 0;      // 72MHz,
-    TIM2.ARR  = 72 - 1; //  1MHz / 2
+    TIM2.ARR  = 24 - 1; //  3MHz / 2
     NVIC_EnableIRQ(TIM2_IRQn);
 
     usb_init();
@@ -260,7 +260,8 @@ int main(void) {
         case TOK_SHIFT: {
             num_bits = getuint32();
             size_t num_bytes = (num_bits + 7) / 8;
-            cbprintf(u1puts, "shifting out :%d bits (%d bytes):\ntms:", num_bits, num_bytes);
+//            cbprintf(u1puts, "shifting out :%d bits (%d bytes):\ntms:", num_bits, num_bytes);
+            cbprintf(u1puts, "shifting out :%d bits (%d bytes):\n", num_bits, num_bytes);
             if (num_bytes >= 1024) {
                 cbprintf(u1puts, "...too large. discarding.\n");
                 for (size_t i = 0; i < num_bytes; ++i)
@@ -270,30 +271,30 @@ int main(void) {
             }
             for (size_t i = 0; i < num_bytes; ++i) {
                 tms_vector[i] = getchar();
-                cbprintf(u1puts, " %02x", tms_vector[i]);
+//                cbprintf(u1puts, " %02x", tms_vector[i]);
             }
-            cbprintf(u1puts, "\ntdi:");
+//          cbprintf(u1puts, "\ntdi:");
             for (size_t i = 0; i < num_bytes; ++i) {
                 tdx_vector[i] = getchar();
-                cbprintf(u1puts, " %02x", tdx_vector[i]);
+//                cbprintf(u1puts, " %02x", tdx_vector[i]);
             }
 
-            usart_wait(&USART1);
+//            usart_wait(&USART1);
 
             shift_count = 0;
             TIM2.CR1 |= TIM_CR1_CEN;
             while (TIM2.CR1 & TIM_CR1_CEN)
                 __WFI();
 
-            cbprintf(u1puts, "\nshifted in %d half bits:\ntdo:", shift_count);
-            for (size_t i = 0; i < num_bytes; ++i) {
-                cbprintf(u1puts, " %02x", tdx_vector[i]);
-            }
-            cbprintf(u1puts, "\n");
+            // cbprintf(u1puts, "\nshifted in %d half bits:\ntdo:", shift_count);
+            // for (size_t i = 0; i < num_bytes; ++i) {
+            //     cbprintf(u1puts, " %02x", tdx_vector[i]);
+            // }
+            // cbprintf(u1puts, "\n");
 
             for (size_t i = 0; i < num_bytes; ){
                 i += usb_send(tdx_vector + i, num_bytes - i);
-                cbprintf(u1puts, "sent %d ...\n", i);
+//                cbprintf(u1puts, "sent %d ...\n", i);
                 usb_recv(NULL, 0); // tick the usb stack
             }
 
